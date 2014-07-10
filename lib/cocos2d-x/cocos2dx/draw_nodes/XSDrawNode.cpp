@@ -95,12 +95,14 @@ void XSDrawNode::drawLine(){
 	glEnableVertexAttribArray( s_aP );
 	glVertexAttribPointer(s_aP, 2, GL_FLOAT, GL_FALSE, 0, vertices);
     
-    
+
 	glEnableVertexAttribArray( s_aColor );
 	glVertexAttribPointer(s_aColor,4,GL_FLOAT,GL_FALSE,0,colors);
-    
+
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 8);
     
+    glDisableVertexAttribArray(s_aP);
+    glDisableVertexAttribArray(s_aColor);
 }
 
 
