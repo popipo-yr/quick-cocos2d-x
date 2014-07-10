@@ -32,6 +32,7 @@
 		2EBA8474191B6AC500256D60 /* LuaCocoStudio.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2EBA8470191B6AC500256D60 /* LuaCocoStudio.cpp */; };
 		4983220E187FE0A900733BFB /* HelperFunc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4983220C187FE0A900733BFB /* HelperFunc.cpp */; };
 		49832211187FE0BE00733BFB /* CZHelperFunc_luabinding.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4983220F187FE0BE00733BFB /* CZHelperFunc_luabinding.cpp */; };
+		9660C925196E4EB3008F36FF /* XSDrawNode.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9660C923196E4EB3008F36FF /* XSDrawNode.cpp */; };
 		F411F3E1175CEAFC00EF549A /* libluajit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F411F3E0175CEAFC00EF549A /* libluajit.a */; };
 		F414F4471961EB5D007C18E4 /* CCTouchTargetNode.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F414F4451961EB5D007C18E4 /* CCTouchTargetNode.cpp */; };
 		F41D98F417F08B85007171D8 /* WebSocket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F41D98F217F08B85007171D8 /* WebSocket.cpp */; };
@@ -481,6 +482,10 @@
 		4983220D187FE0A900733BFB /* HelperFunc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = HelperFunc.h; sourceTree = "<group>"; };
 		4983220F187FE0BE00733BFB /* CZHelperFunc_luabinding.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CZHelperFunc_luabinding.cpp; sourceTree = "<group>"; };
 		49832210187FE0BE00733BFB /* CZHelperFunc_luabinding.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CZHelperFunc_luabinding.h; sourceTree = "<group>"; };
+		9660C921196E4EB3008F36FF /* xsLinefrag.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = xsLinefrag.h; sourceTree = "<group>"; };
+		9660C922196E4EB3008F36FF /* xsLinevert.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = xsLinevert.h; sourceTree = "<group>"; };
+		9660C923196E4EB3008F36FF /* XSDrawNode.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = XSDrawNode.cpp; sourceTree = "<group>"; };
+		9660C924196E4EB3008F36FF /* XSDrawNode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XSDrawNode.h; sourceTree = "<group>"; };
 		F411F3DB175CEAFC00EF549A /* lauxlib.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lauxlib.h; sourceTree = "<group>"; };
 		F411F3DC175CEAFC00EF549A /* lua.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = lua.h; sourceTree = "<group>"; };
 		F411F3DD175CEAFC00EF549A /* luaconf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = luaconf.h; sourceTree = "<group>"; };
@@ -1408,6 +1413,15 @@
 				4983220D187FE0A900733BFB /* HelperFunc.h */,
 			);
 			path = apptools;
+			sourceTree = "<group>";
+		};
+		9660C920196E4EB3008F36FF /* shader */ = {
+			isa = PBXGroup;
+			children = (
+				9660C921196E4EB3008F36FF /* xsLinefrag.h */,
+				9660C922196E4EB3008F36FF /* xsLinevert.h */,
+			);
+			path = shader;
 			sourceTree = "<group>";
 		};
 		F411F3D9175CEAEA00EF549A /* luajit */ = {
@@ -2697,6 +2711,9 @@
 		F4E87F641770071500577406 /* draw_nodes */ = {
 			isa = PBXGroup;
 			children = (
+				9660C920196E4EB3008F36FF /* shader */,
+				9660C923196E4EB3008F36FF /* XSDrawNode.cpp */,
+				9660C924196E4EB3008F36FF /* XSDrawNode.h */,
 				F4E87F651770071500577406 /* CCDrawingPrimitives.cpp */,
 				F4E87F661770071500577406 /* CCDrawingPrimitives.h */,
 				F4E87F671770071500577406 /* CCDrawNode.cpp */,
@@ -3342,6 +3359,7 @@
 				F4DE0B3D16800261005DB2DB /* tolua_is.c in Sources */,
 				F4DE0B3E16800261005DB2DB /* tolua_map.c in Sources */,
 				F4DE0B3F16800261005DB2DB /* tolua_push.c in Sources */,
+				9660C925196E4EB3008F36FF /* XSDrawNode.cpp in Sources */,
 				F4CB86B1180D017700D81CF3 /* CCNetwork.cpp in Sources */,
 				F43152A3180CF7E30046351C /* cpSweep1D.c in Sources */,
 				F4CB87B5180D02F600D81CF3 /* usocket.c in Sources */,

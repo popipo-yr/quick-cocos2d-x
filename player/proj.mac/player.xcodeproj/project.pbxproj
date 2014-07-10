@@ -249,7 +249,7 @@
 				ORGANIZATIONNAME = quick.cocoachina.com;
 				TargetAttributes = {
 					F44C957115F49004004D4151 = {
-						DevelopmentTeam = U7E7529TA5;
+						DevelopmentTeam = 4KSVTJUMRP;
 					};
 				};
 			};
