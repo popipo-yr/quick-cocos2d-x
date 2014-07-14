@@ -1,75 +1,10 @@
--------------------------------------------------------------------------------
--- Copyright (c) 2011-2012 Sierra Wireless and others.
--- All rights reserved. This program and the accompanying materials
--- are made available under the terms of the Eclipse Public License v1.0
--- which accompanies this distribution, and is available at
--- http://www.eclipse.org/legal/epl-v10.html
---
--- Contributors:
---     Sierra Wireless - initial API and implementation
--------------------------------------------------------------------------------
--- Debugger using DBGp protocol.
--------------------------------------------------------------------------------
--- The module returns a single init function which takes 6 parameters (IDEHOST, IDEPORT, IDEKEY, TRANSPORT, PLATFORM, WORKINGDIR).
---
--- IDEHOST: the host name or the ip address of the DBGP server (so your ide)
--- if HOST is nil, the DBGP_IDEHOST env var is used.
--- if the env var is nil, the default value '127.0.0.1' is used.
---
--- IDEPORT: the port of the DBGP server (must be configure in the IDE)
--- if PORT is nil, the DBGP_IDEPORT env var is used.
--- if the env var is nil, the default value '10000' is used.
---
--- IDEIDEKEY: a string which is used as session key
--- if IDEKEY is nil, the DBGP_IDEKEY env var is used.
--- if the env var is nil, the default value 'luaidekey' is used.
---
--- TRANSPORT: (advanced optional parameter) the module name of which implement the transport interface used to do the connection with the server.
--- by default the debugger use an  internal implementation based on luasocket, but if can not use it, you could implement or use another transport layer implementation.
--- if TRANSPORT is nil, the DBGP_TRANSPORT env var is used.
--- if the env var is nil, the default value 'debugger.transport.luasocket' is used : this is the default implementation based on luasocket.
---
--- PLATFORM: (advanced optional parameter) 'unix' or 'win32' string which define the kind of platform on which the program to debug is executed.
--- by default the debugger will try to guess it and surely success, if for some reasons it fails you could help it by precise the execution platform.
--- if PLATFORM is nil, the DBGP_PLATFORM env var is used.
--- if the env var is nil, the debugger will try to guess it.
---
--- WORKINGDIR: (advanced optional parameter) the working directory in which the program to debug is executed.
--- by default the debugger will try to guess it and surely success, if for some reasons it fails you could help it by precise the working directory.
--- if WORKINGDIR is nil, the DBGP_WORKINGDIR env var is used.
--- if the env var is nil, the debugger will try to guess it.
---
--------------------------------------------------------------------------------
--- Known Issues:
---   * Functions cannot be created using the debugger and then called in program because their environment is mapped directly to
---     a debugger internal structure which cannot be persisted (i.e. used outside of the debug_hook).
---   * The DLTK client implementation does not handle context for properties. As a workaround, the context is encoded into the
---     fullname attribute of each property and is used likewise in property_get commands. The syntax is "<context ID>|<full name>"
---   * Dynamic code (compiled with load or loadstring) is not handled (the debugger will step over it, like C code)
--- Design notes:
---   * The whole debugger state is kept in a (currently) unique session table in order to ease eventual adaptation to a multi-threaded
---     model, as DBGp needs one connection per thread.
---   * Full names of properties are base64 encoded because they can contain arbitrary data (spaces, escape characters, ...), this makes
---     command parsing munch easier and faster
---   * This debugger supports asynchronous commands: any command can be done at any time, but some of them (continuations) can lead to
---     inconsistent states. In addition, this have a quite big overhead (~66%), if performance is an issue, a custom command to disable
---     async mode could be done.
---   * All commands are implemented in table commands, see this comments on this table to additional details about commands implementation
---   * The environments in which are evaluated user code (property_* and eval commands, conditional breakpoints, ...) is a read/write
---     mapping of the local environment of a given stack level (can be accessed with variable names). See Context for additional details.
---     Context instantiation is pooled inside a debugging loop with ContextManager (each stack level is instantiated only once).
---   * Output redirection is done by redefining print and some values inside the io table. See "Output redirection handling" for details.
--- Todo list:
---   * Override I/O in init function instead of on module loading.
---   * Allow to break programatically (debugger.break()).
---   * Break-on-error feature (break if an error is thrown and there is no pcall in stack to handle it).
---   * Use new 5.2 facilities to provide informations about function (arguments names, vararg, ...)
---   * Allow to see ... content for vararg functions (5.2 only)
---   * Inspect LuaJIT C data (http://lua-users.org/lists/lua-l/2011-02/msg01012.html)-- /!\ This file is auto-generated. Do not alter manually /!\
+-- /!\ This file is auto-generated. Do not alter manually /!\
 
 --------------------------------------------------------------------------------
 --  Submodules body
 --------------------------------------------------------------------------------
+
+
 --------------------------------------------------------------------------------
 --  Module debugger.transport.apr
 package.preload["debugger.transport.apr"] = function(...)
@@ -117,7 +52,7 @@ return {
       return setmetatable({skt = skt}, SOCKET_MT)
     end,
     sleep      = apr.sleep, -- exact same API as LuaSocket
-
+    
     -- Base64 related functions
     --- Encodes a string into Base64 with line wrapping
     -- @param data (string) data to encode
@@ -141,9 +76,9 @@ return {
 }
 
 end
+-- End of module debugger.transport.apr
 --------------------------------------------------------------------------------
--- End of moduledebugger.transport.apr
---------------------------------------------------------------------------------
+
 
 --------------------------------------------------------------------------------
 --  Module debugger.transport.luasocket
@@ -161,7 +96,7 @@ package.preload["debugger.transport.luasocket"] = function(...)
 -- LuaSocket backend for DBGP debugger.
 -------------------------------------------------------------------------------
 
--- in order to be as lightweight as possible with Luasocket, core API is used
+-- in order to be as lightweight as possible with Luasocket, core API is used 
 -- directly (to no add yet another layer)
 
 --FIXME: remove this hack as soon as luasocket officially support 5.2
@@ -178,7 +113,7 @@ local reg = debug.getregistry()
 return {
     create = socket.tcp,
     sleep  = socket.sleep,
-
+    
     -- Base64 related functions
     --- Encodes a string into Base64 with line wrapping
     -- @param data (string) data to encode
@@ -206,96 +141,9 @@ return {
 }
 
 end
+-- End of module debugger.transport.luasocket
 --------------------------------------------------------------------------------
--- End of moduledebugger.transport.luasocket
---------------------------------------------------------------------------------
 
---------------------------------------------------------------------------------
---  Module debugger.transport.luasocket_sched
-package.preload["debugger.transport.luasocket_sched"] = function(...)
--------------------------------------------------------------------------------
--- Copyright (c) 2011-2012 Sierra Wireless and others.
--- All rights reserved. This program and the accompanying materials
--- are made available under the terms of the Eclipse Public License v1.0
--- which accompanies this distribution, and is available at
--- http://www.eclipse.org/legal/epl-v10.html
---
--- Contributors:
---     Sierra Wireless - initial API and implementation
--------------------------------------------------------------------------------
--- LuaSocket with LuaSched backend for DBGP debugger.
--------------------------------------------------------------------------------
-
--- As LuaShed totally hides blocking functions, this module MUST be loaded on the very start of the program
--- (before loading sched) to catch references to blocking functions.
-
-local socketcore = require"socket.core"
-local debug      = require "debug"
-local reg = debug.getregistry()
-
-local blockingcreate  = socketcore.tcp
-local blockingsleep   = socketcore.sleep
-
-local blockingconnect    = reg["tcp{master}"].__index.connect
-local blockingreceive    = reg["tcp{client}"].__index.receive
-local blockingsend       = reg["tcp{client}"].__index.send
-local blockingsettimeout = reg["tcp{master}"].__index.settimeout
-local blockingclose      = reg["tcp{master}"].__index.close
-
--- we cannot set a new metatable directly on socket object, so wrap it into a new table
--- and forward all calls.
-local blockingtcp = {
-  connect    = function(self, address, port) return blockingconnect(self.skt, address, port) end,
-  receive    = function(self, n)             return blockingreceive(self.skt, n) end,
-  send       = function(self, data)          return blockingsend(self.skt, data) end,
-  settimeout = function(self, sec)           return blockingsettimeout(self.skt, sec) end,
-  close      = function(self)                return blockingclose(self.skt) end,
-}
-
-blockingtcp.__index = blockingtcp
-
-local mime  = require "mime"
-local ltn12 = require "ltn12"
-
--- verify that the socket function are the real ones and not sched not blocking versions
-assert(debug.getinfo(blockingcreate, "S").what == "C", "The debugger needs the real socket functions !")
--- cleanup the package.loaded table (socket.core adds socket field into it)
-package.loaded.socket = nil
-
-return {
-    create = function() return setmetatable({ skt = blockingcreate() }, blockingtcp) end,
-    sleep  = blockingsleep,
-
-    -- Base64 related functions
-    --- Encodes a string into Base64 with line wrapping
-    -- @param data (string) data to encode
-    -- @return base64 encoded string
-    b64 = function(data)
-        local filter = ltn12.filter.chain(mime.encode("base64"), mime.wrap("base64"))
-        local sink, output = ltn12.sink.table()
-        ltn12.pump.all(ltn12.source.string(data), ltn12.sink.chain(filter, sink))
-        return table.concat(output)
-    end,
-
-    --- Encodes a string into Base64, without any extra parsing (wrapping, ...)
-    -- @param data (string) data to encode
-    -- @return decoded string
-    rawb64 = function(data)
-        return (mime.b64(data)) -- first result of the low-level function is fine here
-    end,
-
-    --- Decodes base64 data
-    -- @param data (string) base64 encoded data
-    -- @return decoded string
-    unb64 = function(data)
-        return (mime.unb64(data)) -- first result of the low-level function is fine here
-    end,
-}
-
-end
---------------------------------------------------------------------------------
--- End of moduledebugger.transport.luasocket_sched
---------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
 --  Module debugger.commands
@@ -313,7 +161,7 @@ package.preload["debugger.commands"] = function(...)
 -- Commands handlers for DBGp protocol.
 -------------------------------------------------------------------------------
 -- Debugger command functions. Each function handle a different command.
--- A command function is called with 3 arguments
+-- A command function is called with 3 arguments 
 --   1. the debug session instance
 --   2. the command arguments as table
 --   3. the command data, if any
@@ -401,7 +249,7 @@ function M.typemap_get(self, args)
     local function gentype(name, type, xsdtype)
         return { tag = "map", atts = { name = name, type = type, ["xsi:type"] = xsdtype } }
     end
-
+    
     dbgp.send_xml(self.skt, { tag = "response", attr = {
             command = "typemap_get",
             transaction_id = args.i,
@@ -445,22 +293,22 @@ function M.eval(self, args, data)
     -- first, try to load as expression
     -- DBGp does not support stack level here, see http://bugs.activestate.com/show_bug.cgi?id=81178
     local func, err = util.loadin("return "..data, env)
-
+    
     -- if it is not an expression, try as statement (assignment, ...)
     if not func then
         func, err = util.loadin(data, env)
     end
-
+    
     if func then
         success, result = pcall(function() return introspection.Multival(func()) end)
         if not success then err = result end
     end
-
+    
     local response = { tag = "response", attr = { command = "eval", transaction_id = args.i } }
     if not err then
         local nresults = result.n
         if nresults == 1 then result = result[1] end
-
+        
         -- store result for further use (property_*)
         -- TODO: this could be optimized: this is only used for Expressions view and totally useless for interactive console,
         --       so storing result or not could be set by an argument
@@ -470,7 +318,7 @@ function M.eval(self, args, data)
             idx = #cache + 1
             cache[idx] = result
         end
-
+        
         -- As of Lua 5.1, the maximum stack size (and result count) is 8000, this limit is used to fit all results in one page
         response[1] = introspection.make_property(-1, result, idx or "", nil, 1, 8000, 0, nil)
         response.attr.success = 1
@@ -483,7 +331,7 @@ end
 
 function M.breakpoint_set(self, args, data)
     if args.o and not core.breakpoints.hit_conditions[args.o] then dbgp.error(200, "Invalid hit_condition operator: "..args.o) end
-
+    
     local filename, lineno = args.f, tonumber(args.n)
     local bp = {
         type = args.t,
@@ -495,20 +343,20 @@ function M.breakpoint_set(self, args, data)
         hit_value = tonumber(args.h or 0),
         hit_condition = args.o or ">=",
     }
-
+    
     if args.t == "conditional" then
         bp.expression = data
         -- the expression is compiled only once
         bp.condition = dbgp.assert(207, loadstring("return (" .. data .. ")"))
     elseif args.t ~= "line" then dbgp.error(201, "BP type " .. args.t .. " not yet supported") end
-
+    
     local bpid = core.breakpoints.insert(bp)
     dbgp.send_xml(self.skt, { tag = "response", attr = { command = "breakpoint_set", transaction_id = args.i, state = bp.state, id = bpid } } )
 end
 
 function M.breakpoint_get(self, args)
-    dbgp.send_xml(self.skt, { tag = "response",
-                              attr = { command = "breakpoint_get", transaction_id = args.i },
+    dbgp.send_xml(self.skt, { tag = "response", 
+                              attr = { command = "breakpoint_get", transaction_id = args.i }, 
                               dbgp.assert(205, core.breakpoints.get_xml(tonumber(args.d))) })
 end
 
@@ -522,7 +370,7 @@ function M.breakpoint_update(self, args)
     local bp = core.breakpoints.get(tonumber(args.d))
     if not bp then dbgp.error(205, "No such breakpint "..args.d) end
     if args.o and not core.breakpoints.hit_conditions[args.o] then dbgp.error(200, "Invalid hit_condition operator: "..args.o) end
-
+    
     local response = { tag = "response", attr = { command = "breakpoint_update", transaction_id = args.i } }
     bp.state = args.s or bp.state
     bp.lineno = tonumber(args.n or bp.lineno)
@@ -556,7 +404,7 @@ function M.stack_get(self, args) -- TODO: dynamic code
         tail = "tailreturn:/",
         C    = "ccode:/",
     }
-
+    
     local function make_level(info, level)
         local attr = { level = level, where = info.name, type="file" }
         local uri = platform.get_uri(info.source)
@@ -569,10 +417,10 @@ function M.stack_get(self, args) -- TODO: dynamic code
         end
         return { tag = "stack", attr = attr }
     end
-
+    
     local node = { tag = "response", attr = { command = "stack_get", transaction_id = args.i} }
     local coro = get_coroutine(self, args.o)
-
+    
     if args.d then
         local stack_level = tonumber(args.d)
         node[#node+1] = make_level(coro:getinfo(stack_level, "nSl"), stack_level)
@@ -588,19 +436,19 @@ function M.stack_get(self, args) -- TODO: dynamic code
             if info.what == "main" then break end -- levels below main chunk are not interesting
         end
     end
-
+    
     dbgp.send_xml(self.skt, node)
 end
 
 --- Lists all active coroutines.
--- Returns a list of active coroutines with their id (an arbitrary string) to query stack and properties. The id is
+-- Returns a list of active coroutines with their id (an arbitrary string) to query stack and properties. The id is 
 -- guaranteed to be unique and stable for all coroutine life (they can be reused as long as coroutine exists).
 -- Others commands such as stack_get or property_* commands takes an additional -o switch to query a particular cOroutine.
 -- If the switch is not given, running coroutine will be used.
 -- In case of error on coroutines (most likely coroutine not found or dead), an error 399 is thrown.
 -- Note there is an important limitation due to Lua 5.1 coroutine implementation: you cannot query main "coroutine" from
 -- another one, so main coroutine is not in returned list (this will change with Lua 5.2).
---
+-- 
 -- This is a non-standard command. The returned XML has the following strucuture:
 --     <response command="coroutine_list" transaction_id="0">
 --       <coroutine name="<some printtable name>" id="<coroutine id>" running="0|1" />
@@ -623,7 +471,7 @@ function M.context_names(self, args)
     local coro = get_coroutine(self, args.o)
     local level = tonumber(args.d or 0)
     local info = coro:getinfo(level, "f") or dbgp.error(301, "No such stack level "..tostring(level))
-
+    
     -- All contexts are always passed, even if empty. This is how DLTK expect context, what about others ?
     local contexts = {
         tag = "response", attr = { command = "context_names", transaction_id = args.i },
@@ -631,7 +479,7 @@ function M.context_names(self, args)
         { tag = "context", attr = { name = "Upvalue", id = 2 } },
         { tag = "context", attr = { name = "Global",  id = 1 } },
     }
-
+    
     dbgp.send_xml(self.skt, contexts)
 end
 
@@ -641,7 +489,7 @@ function M.context_get(self, args)
     local level = tonumber(args.d or 0)
     local coro = get_coroutine(self, args.o)
     local cxt = self.stack(coro, level)
-
+    
     local properties = { tag = "response", attr = { command = "context_get", transaction_id = args.i, context = context} }
     -- iteration over global is different (this could be unified in Lua 5.2 thanks to __pairs metamethod)
     for name, val in (cxt_num == 1 and next or getmetatable(cxt[cxt_id]).iterator), cxt[cxt_id], nil do
@@ -649,7 +497,7 @@ function M.context_get(self, args)
         properties[#properties + 1] = introspection.make_property(cxt_num, val, name, nil, 0, util.features.max_children, 0,
                                                     util.features.max_data, cxt_num ~= 1)
     end
-
+    
     dbgp.send_xml(self.skt, properties)
 end
 
@@ -661,7 +509,7 @@ end
 -- and the cache of complex keys.
 local property_evaluation_environment = {
     key_cache = introspection.key_cache,
-    metatable = setmetatable({ }, {
+    metatable = setmetatable({ }, { 
         __index = function(self, tbl) return getmetatable(tbl) end,
         __newindex = function(self, tbl, mt) return setmetatable(tbl, mt) end,
     }),
@@ -688,7 +536,7 @@ function M.property_get(self, args)
     -- special variables queries are in the form "<proxy name>[(...)[a][b]<...>]"
     -- TODO: such parsing is far from perfect
     if name:match("^[%w_]+%[.-%b[]%]$") == name then response.attr.type = "special" end
-    dbgp.send_xml(self.skt, { tag = "response",
+    dbgp.send_xml(self.skt, { tag = "response", 
                               attr = { command = "property_get", transaction_id = args.i, context = context},
                               response } )
 end
@@ -705,10 +553,10 @@ function M.property_set(self, args, data)
     local level = tonumber(args.d or 0)
     local coro = get_coroutine(self, args.o)
     local cxt = self.stack(coro, level)
-
+    
     -- evaluate the new value in the local context
     local value = select(2, dbgp.assert(206, pcall(dbgp.assert(206, util.loadin("return "..data, cxt)))))
-
+    
     local chunk = dbgp.assert(206, util.loadin(name .. " = value", setmetatable({ value = value }, property_evaluation_environment)))
     dbgp.assert(206, pcall(chunk, cxt[cxt_id]))
     dbgp.send_xml(self.skt, { tag = "response", attr = { success = 1, transaction_id = args.i } } )
@@ -730,8 +578,8 @@ function M.source(self, args)
     -- Try to identify compiled files
     if file:read(1) == "\033" then dbgp.error(100, args.f.." is bytecode", { success = 0 }) end
     file:seek("set", 0)
-
-
+    
+    
     local srclines = { }
     local beginline, endline, currentline = tonumber(args.b or 0), tonumber(args.e or math.huge), 0
     for line in file:lines() do
@@ -742,9 +590,9 @@ function M.source(self, args)
     end
     file:close()
     srclines[#srclines + 1] = "" -- to add a trailing \n
-
-    dbgp.send_xml(self.skt, { tag = "response",
-                              attr = { command = "source", transaction_id = args.i, success = 1},
+    
+    dbgp.send_xml(self.skt, { tag = "response", 
+                              attr = { command = "source", transaction_id = args.i, success = 1}, 
                               util.b64(table.concat(srclines, "\n")) })
 end
 
@@ -767,9 +615,9 @@ M.stderr = output_command_handler_factory("stderr")
 return M
 
 end
+-- End of module debugger.commands
 --------------------------------------------------------------------------------
--- End of moduledebugger.commands
---------------------------------------------------------------------------------
+
 
 --------------------------------------------------------------------------------
 --  Module debugger.context
@@ -824,7 +672,7 @@ M.Context = {
     -- EVAL is used to keep results from eval in cache in order to browse or modify them, results are stored as sequence
     [-1] = EVAL,
     STORE = STORE,
-
+    
     -- gets a variable by name with correct handling of Lua scope chain
     -- the or chain does not work here beacause __index metamethod would raise an error instead of returning nil
     __index = function(self, k)
@@ -837,7 +685,7 @@ M.Context = {
         elseif self[UPVAL][STORE][k] then self[UPVAL][k] = v
         else self[GLOBAL][k] = v end
     end,
-
+    
     -- debug only !!
     __tostring = function(self)
         local buf = { "Locals: \n" }
@@ -850,7 +698,7 @@ M.Context = {
         end
         return table.concat(buf)
     end,
-
+    
     LocalContext = {
         __index = function(self, k)
             local index = self[STORE][k]
@@ -872,7 +720,7 @@ M.Context = {
             if key then return key, self[key] else return nil end
         end,
     },
-
+    
     UpvalContext = {
         __index = function(self, k)
             local index = self[STORE][k]
@@ -891,7 +739,7 @@ M.Context = {
             if key then return key, self[key] else return nil end
         end,
     },
-
+    
     --- Context constructor
     -- @param coro  (util.*Thread instance) coroutine to map to
     -- @param level (number) stack level do dump (script stack level)
@@ -899,7 +747,7 @@ M.Context = {
         local locals, upvalues = {}, {}
         if level < 0 then dbgp.error(301, "No such stack level: "..tostring(level)) end
         local func = (coro:getinfo(level, "f") or dbgp.error(301, "No such stack level: "..tostring(level))).func
-
+        
         -- local variables
         for i=1, math.huge do
             local name, val = coro:getlocal(level, i)
@@ -908,27 +756,27 @@ M.Context = {
                 locals[name] = i
             end
         end
-
+        
         -- upvalues
         for i=1, math.huge do
             local name, val = debug.getupvalue(func, i)
             if not name then break end
             upvalues[name] = i
         end
-
+        
         locals = setmetatable({ [STORE] = locals, [HANDLE] = { level = level, coro = coro } }, cls.LocalContext)
         upvalues = setmetatable({ [STORE] = upvalues, [HANDLE] = func }, cls.UpvalContext)
-
+        
         local result = setmetatable({ [LOCAL] = locals, [UPVAL] = upvalues, [EVAL] = {} }, cls)
         rawset(result, GLOBAL, getglobals(func, result))
         return result
     end,
 }
 
---- Handle caching of all instantiated context.
--- Returns a function which takes 2 parameters: thread and stack level and returns the corresponding context. If this
--- context has been already queried there is no new instantiation. A ContextManager is valid only during the debug loop
--- on which it has been instantiated. References to a ContextManager must be lost after the end of debug loop (so
+--- Handle caching of all instantiated context. 
+-- Returns a function which takes 2 parameters: thread and stack level and returns the corresponding context. If this 
+-- context has been already queried there is no new instantiation. A ContextManager is valid only during the debug loop 
+-- on which it has been instantiated. References to a ContextManager must be lost after the end of debug loop (so 
 -- threads can be collected).
 -- If a context cannot be instantiated, an 301 DBGP error is thrown.
 function M.ContextManager()
@@ -942,13 +790,13 @@ function M.ContextManager()
             thread_contexts = { }
             cache[key] = thread_contexts
         end
-
+        
         local context = thread_contexts[level]
         if not context then
             context = M.Context:new(thread, level)
             thread_contexts[level] = context
         end
-
+        
         return context
     end
 end
@@ -956,9 +804,9 @@ end
 return M
 
 end
+-- End of module debugger.context
 --------------------------------------------------------------------------------
--- End of moduledebugger.context
---------------------------------------------------------------------------------
+
 
 --------------------------------------------------------------------------------
 --  Module debugger.dbgp
@@ -978,7 +826,7 @@ package.preload["debugger.dbgp"] = function(...)
 
 local util = require "debugger.util"
 
-local error, setmetatable, type, pairs, ipairs, tostring, tconcat =
+local error, setmetatable, type, pairs, ipairs, tostring, tconcat = 
       error, setmetatable, type, pairs, ipairs, tostring, table.concat
 
 local M = { }
@@ -1064,7 +912,7 @@ function M.lom2str(xml)
             end
         end
         pieces[#pieces] = nil -- remove the last separator (useless)
-
+        
         if node[1] then
             pieces[#pieces + 1] = ">"
             for _, child in ipairs(node) do
@@ -1076,7 +924,7 @@ function M.lom2str(xml)
             pieces[#pieces + 1] = "/>"
         end
     end
-
+    
     generate(xml)
     return tconcat(pieces)
 end
@@ -1084,7 +932,7 @@ end
 function M.send_xml(skt, resp)
     if not resp.attr then resp.attr = {} end
     resp.attr.xmlns = "urn:debugger_protocol_v1"
-
+    
     local data = '<?xml version="1.0" encoding="UTF-8" ?>\n'..M.lom2str(resp)
     util.log("DEBUG", "Send " .. data)
     skt:send(tostring(#data).."\000"..data.."\000")
@@ -1105,9 +953,9 @@ end
 return M
 
 end
+-- End of module debugger.dbgp
 --------------------------------------------------------------------------------
--- End of moduledebugger.dbgp
---------------------------------------------------------------------------------
+
 
 --------------------------------------------------------------------------------
 --  Module debugger.introspection
@@ -1141,7 +989,7 @@ local probes = { }
 
 ---
 -- Introspection logic. This module implements Lua objects introspection and
--- generates a [DBGP](http://xdebug.org/docs-dbgp.php) compatible
+-- generates a [DBGP](http://xdebug.org/docs-dbgp.php) compatible 
 -- [LOM](http://matthewwild.co.uk/projects/luaexpat/lom.html) data scructure.
 -- @module debugger.introspection
 local M = { }
@@ -1152,10 +1000,10 @@ local M = { }
 -- Modifying properties after their generation is possible (as actual data serialization/sending is delayed)
 -- but should be used with care. The XML structure uses the [LOM](http://matthewwild.co.uk/projects/luaexpat/lom.html)
 -- format, refer to these documents to get more informations about fields.
---
+-- 
 -- In addition to table fields, it has an array part, `[1]` being the string representation (base64 encoded),
 -- possibly followed by chlid properties (@{#DBGPProperty} themselves)
---
+-- 
 -- @field #string tag Always "property"
 -- @field #table attr XML attributes, see DBGP specification
 -- @type DBGPProperty
@@ -1244,7 +1092,7 @@ local function fancy_func_repr(f, info)
 end
 
 --- Generate a name siutable for table index syntax
--- @param name Key name
+-- @param name Key name 
 -- @return #string A table index style index
 -- @usage generate_printable_key('foo') => '["foo"]'
 -- @usage generate_printable_key(12)    => '[12]'
@@ -1320,7 +1168,7 @@ M.inspectors["function"] = function(name, value, parent, fullname)
         prop = M.property(name, "function", tostring(value), parent, fullname)
     end
     if not prop then return nil end
-
+    
     -- (5.1 only) environment is dumped only if it is different from global environment
     -- TODO: this is not a correct behavior: environment should be dumped if is different from current stack level one
     local fenv = getfenv and getfenv(value)
@@ -1328,7 +1176,7 @@ M.inspectors["function"] = function(name, value, parent, fullname)
         local fenvprop = M.inspect("environment", fenv, prop, "environment["..prop.attr.fullname.."]")
         if fenvprop then fenvprop.attr.type = "special" end
     end
-
+    
     return prop
 end
 
@@ -1336,7 +1184,7 @@ end
 M.inspectors.table = function(name, value, parent, fullname)
     local prop, iscustom = metatable_inspector(name, value, parent, fullname)
     if not prop or iscustom then return prop end
-
+    
     -- iterate over table values and detect arrays at the same time
     -- next is used to circumvent __pairs metamethod in 5.2
     local isarray, i = true, 1
@@ -1348,7 +1196,7 @@ M.inspectors.table = function(name, value, parent, fullname)
     end
     -- empty tables are considered as tables
     if isarray and i > 1 then prop.attr.type = "sequence" end
-
+    
     return prop
 end
 
@@ -1426,7 +1274,7 @@ M.make_property = function(cxt_id, value, name, fullname, depth, pagesize, page,
           },
           util.b64(size_limit and repr:sub(1, size_limit) or repr)
         }
-
+        
         if parent then
             parent.attr.children = 1
             parent.attr.numchildren = (parent.attr.numchildren or 0) + 1
@@ -1454,569 +1302,9 @@ end
 return M
 
 end
---------------------------------------------------------------------------------
--- End of moduledebugger.introspection
---------------------------------------------------------------------------------
-
---------------------------------------------------------------------------------
---  Module debugger.plugins.ffi
-package.preload["debugger.plugins.ffi"] = function(...)
--------------------------------------------------------------------------------
--- Copyright (c) 2012-2013 Julien Desgats
--- All rights reserved. This program and the accompanying materials
--- are made available under the terms of the Eclipse Public License v1.0
--- which accompanies this distribution, and is available at
--- http://www.eclipse.org/legal/epl-v10.html
---
--- Contributors:
---     Julien Desgats - initial API and implementation
--------------------------------------------------------------------------------
--- LuaJIT cdata introspection library.
--------------------------------------------------------------------------------
-
--- known issues:
---  * references are de-referenced event if inspect_references is unset
---  * is automatic pointer and reference de-referencing is possible ?
---    (only for first item in case of arrays). Possible leads:
---    http://stackoverflow.com/questions/7134590/how-to-test-if-an-address-is-readable-in-linux-userspace-app
---    http://www.softwareverify.com/blog/?p=319
---  * when setting a value from Eclipse, the type is sometimes changed (e.g. int => number)
-
-local introspection = require "debugger.introspection"
-local reflect = require "debugger.plugins.ffi.reflect"
-local ffi = require "ffi"
-
-local tostring, tonumber, type, assert, sformat, tconcat = tostring, tonumber, type, assert, string.format, table.concat
-
-local M = { }
-
---- Whether the reference types are inspected. Usually references should be safe (at least a bit
--- safer than pointers) so they are inspected. If a reference points to unsafe memory, the whole
--- program could crash !
--- If this feature is disabled, deeply nested C types will not be displayed correctly as evaluation
--- has a recursion limit, any further evaluation is done through references.
-M.inspect_references = true
-
-local function make_typename(refct)
-    local t = refct.what
-    if t == "int" then
-        if refct.bool then t = "bool"
-        else
-            -- use C99 type notation to give more details about acutal type
-            t = (refct.unsigned and "uint" or "int") .. tostring(refct.size * 8) .. "_t"
-        end
-    elseif t == "float" then
-        -- assume IEEE754
-        if     refct.size ==  8 then t = "double"
-        elseif refct.size == 16 then t = "long double" -- not really sure this one is always true
-        end
-    elseif t == "struct" or t == "enum" or t == "union" then
-        t = refct.name and (t .. " " .. refct.name) or ("anonymous "..t)
-    elseif t == "func" then
-        t = "function (FFI)"
-    elseif t == "ptr" then
-        t = make_typename(refct.element_type) .. "*"
-    elseif t == "ref" then
-        t = make_typename(refct.element_type) .. "&"
-    elseif t == "field" then
-        return make_typename(refct.type)
-    elseif t == "bitfield" then
-        t = (refct.type.unsigned and "unsigned" or "signed") .. ":" .. tostring(refct.size * 8)
-        refct = refct.type
-    end
-
-    if refct.const then t = "const " .. t end
-    if refct.volatile then t = "volatile " .. t end
-    return t
-end
-
--- if cdatakind is unknown, this one will be called
-local default_inspector = introspection.inspectors.number
-local inspect
-
--- recursion must be handled with some care: if we call regular introspection.inspect
--- we may create boxed references or Lua native objects which will be inspected as such
--- (leading to wrong type names).
-local function recurse(name, value, parent, fullname, refct)
-    if type(value) == "cdata" then
-        return inspect(name, value, parent, fullname, refct)
-    else
-        local prop = introspection.inspect(name, value, parent, fullname)
-        if prop then
-            prop.attr.type = make_typename(refct)
-        end
-        return prop
-    end
-end
-
--- cdata specific inspectors
-local inspectors = {
-    struct = function(name, value, parent, fullname, refct)
-        local prop = introspection.property(name, make_typename(refct), tostring(value), parent, fullname)
-
-        -- inspect children, if needed
-        if prop then
-            for member in refct:members() do
-                local mname = member.name
-                recurse(mname, value[mname], prop, fullname .. sformat('[%q]', mname), member)
-            end
-        end
-        return prop
-    end,
-
-    array = function(name, value, parent, fullname, refct)
-        local etype = refct.element_type
-        -- for VLAs, reflect does not give size
-        local size = refct.size ~= "none" and refct.size or ffi.sizeof(value)
-        size = size and (size / etype.size) -- we've got the byte size, not element count
-
-        local typename = make_typename(etype)
-        local prop = introspection.property(name, typename .. "[" .. (tostring(size) or "") .. "]", tostring(value), parent, fullname)
-
-        if prop and size then
-            for i=0, size-1 do
-                local idx = "["..tostring(i).."]"
-                recurse(idx, value[i], prop, fullname .. idx, etype)
-            end
-        end
-        return prop
-    end,
-
-    func = function(name, value, parent, fullname, refct)
-        local args = { }
-        for arg in refct:arguments() do
-            args[#args + 1] = make_typename(arg.type) .. " " .. arg.name
-        end
-
-        if refct.vararg then
-            args[#args + 1] = "..."
-        end
-
-        local repr = make_typename(refct.return_type) .. " " .. refct.name .. "(" .. tconcat(args, ", ") .. ")"
-        return introspection.property(name, make_typename(refct), repr, parent, fullname)
-    end,
-
-    enum = function(name, value, parent, fullname, refct)
-        local repr = tonumber(value)
-        -- try to convert numeric value into enum name
-        --TODO: is there a faster method to make it ?
-        for val in refct:values() do
-            if val.value == repr then
-                repr = val.name
-                break
-            end
-        end
-
-        return introspection.property(name, make_typename(refct), tostring(repr), parent, fullname)
-    end,
-
-    ref = function(name, value, parent, fullname, refct)
-        -- this may be unsafe, see inspect_references setting
-        local typename = make_typename(refct)
-        if not M.inspect_references then
-            return introspection.property(name, typename, tostring(value), parent, fullname)
-        end
-
-        local prop = recurse(name, value, parent, fullname, refct.element_type)
-        if prop then
-            prop.attr.type = typename
-        end
-        return prop
-    end,
-
-    int = function(name, value, parent, fullname, refct)
-        return introspection.property(name, make_typename(refct), tostring(tonumber(value)), parent, fullname)
-    end,
-
-    -- pointers are too unsafe, do not inspect them
-    ptr = function(name, value, parent, fullname, refct)
-        return introspection.property(name, make_typename(refct), tostring(value), parent, fullname)
-    end,
-}
-
-inspectors.union = inspectors.struct
-inspectors.float = inspectors.int
-
--- for struct/union fields, the actual type is nested into the refct
-inspectors.field = function(name, value, parent, fullname, refct)
-    return inspect(name, value, parent, fullname, refct.type)
-end
-inspectors.bitfield = inspectors.field
-
-inspect = function(name, value, parent, fullname, refct)
-    -- inspect only values, not ctypes
-    --FIXME: this cause references to be dereferenced and crash the process if they are wrong !
-    if ffi.typeof(value) ~= value then
-        refct = refct or reflect.typeof(value)
-        return (inspectors[refct.what] or default_inspector)(name, value, parent, fullname, refct)
-    end
-
-    -- return a simple property for ctypes
-    return introspection.property(name, "ctype", tostring(value), parent, fullname)
-end
-
-introspection.inspectors.cdata = inspect
-
-return M
-
-end
---------------------------------------------------------------------------------
--- End of moduledebugger.plugins.ffi
+-- End of module debugger.introspection
 --------------------------------------------------------------------------------
 
---------------------------------------------------------------------------------
---  Module debugger.plugins.ffi.reflect
-package.preload["debugger.plugins.ffi.reflect"] = function(...)
---[[ LuaJIT FFI reflection Library ]]--
---[[ Copyright (C) 2013 Peter Cawley <lua@corsix.org>. All rights reserved.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
---]]
-local ffi = require "ffi"
-local bit = require "bit"
-local reflect = {}
-
--- Relevant minimal definitions from lj_ctype.h
-ffi.cdef [[
-  typedef struct CType {
-    uint32_t info;
-    uint32_t size;
-    uint16_t sib;
-    uint16_t next;
-    uint32_t name;
-  } CType;
-
-  typedef struct CTState {
-    CType *tab;
-    uint32_t top;
-    uint32_t sizetab;
-    void *L;
-    void *g;
-    void *finalizer;
-    void *miscmap;
-  } CTState;
-]]
-
-local function gc_str(gcref) -- Convert a GCref (to a GCstr) into a string
-  if gcref ~= 0 then
-    local ts = ffi.cast("uint32_t*", gcref)
-    return ffi.string(ts + 4, ts[3])
-  end
-end
-
-local function memptr(gcobj)
-  return tonumber(tostring(gcobj):match"%x*$", 16)
-end
-
--- Acquire a pointer to this Lua universe's CTState
-local CTState do
-  local co = coroutine.create(function()end) -- Any live coroutine will do.
-  local uint32_ptr = ffi.typeof("uint32_t*")
-  local G = ffi.cast(uint32_ptr, ffi.cast(uint32_ptr, memptr(co))[2])
-  -- In global_State, `MRef ctype_state` is immediately before `GCRef gcroot[GCROOT_MAX]`.
-  -- We first find (an entry in) gcroot by looking for a metamethod name string.
-  local anchor = ffi.cast("uint32_t", ffi.cast("const char*", "__index"))
-  local i = 0
-  while math.abs(tonumber(G[i] - anchor)) > 64 do
-    i = i + 1
-  end
-  -- We then work backwards looking for something resembling ctype_state.
-  repeat
-    i = i - 1
-    CTState = ffi.cast("CTState*", G[i])
-  until ffi.cast(uint32_ptr, CTState.g) == G
-end
-
--- Acquire the CTState's miscmap table as a Lua variable
-local miscmap do
-  local t = {}; t[0] = t
-  local tvalue = ffi.cast("uint32_t*", memptr(t))[2]
-  ffi.cast("uint32_t*", tvalue)[ffi.abi"le" and 0 or 1] = ffi.cast("uint32_t", ffi.cast("uintptr_t", CTState.miscmap))
-  miscmap = t[0]
-end
-
--- Information for unpacking a `struct CType`.
--- One table per CT_* constant, containing:
--- * A name for that CT_
--- * Roles of the cid and size fields.
--- * Whether the sib field is meaningful.
--- * Zero or more applicable boolean flags.
-local CTs = {[0] =
-  {"int",
-    "", "size", false,
-    {0x08000000, "bool"},
-    {0x04000000, "float", "subwhat"},
-    {0x02000000, "const"},
-    {0x01000000, "volatile"},
-    {0x00800000, "unsigned"},
-    {0x00400000, "long"},
-  },
-  {"struct",
-    "", "size", true,
-    {0x02000000, "const"},
-    {0x01000000, "volatile"},
-    {0x00800000, "union", "subwhat"},
-    {0x00100000, "vla"},
-  },
-  {"ptr",
-    "element_type", "size", false,
-    {0x02000000, "const"},
-    {0x01000000, "volatile"},
-    {0x00800000, "ref", "subwhat"},
-  },
-  {"array",
-    "element_type", "size", false,
-    {0x08000000, "vector"},
-    {0x04000000, "complex"},
-    {0x02000000, "const"},
-    {0x01000000, "volatile"},
-    {0x00100000, "vla"},
-  },
-  {"void",
-    "", "size", false,
-    {0x02000000, "const"},
-    {0x01000000, "volatile"},
-  },
-  {"enum",
-    "type", "size", true,
-  },
-  {"func",
-    "return_type", "nargs", true,
-    {0x00800000, "vararg"},
-    {0x00400000, "sse_reg_params"},
-  },
-  {"typedef", -- Not seen
-    "element_type", "", false,
-  },
-  {"attrib", -- Only seen internally
-    "type", "value", true,
-  },
-  {"field",
-    "type", "offset", true,
-  },
-  {"bitfield",
-    "", "offset", true,
-    {0x08000000, "bool"},
-    {0x02000000, "const"},
-    {0x01000000, "volatile"},
-    {0x00800000, "unsigned"},
-  },
-  {"constant",
-    "type", "value", true,
-    {0x02000000, "const"},
-  },
-  {"extern", -- Not seen
-    "CID", "", true,
-  },
-  {"kw", -- Not seen
-    "TOK", "size",
-  },
-}
-
--- Set of CType::cid roles which are a CTypeID.
-local type_keys = {
-  element_type = true,
-  return_type = true,
-  value_type = true,
-  type = true,
-}
-
--- Create a metatable for each CT.
-local metatables = {
-}
-for _, CT in ipairs(CTs) do
-  local what = CT[1]
-  local mt = {__index = {}}
-  metatables[what] = mt
-end
-
--- Logic for merging an attribute CType onto the annotated CType.
-local CTAs = {[0] =
-  function(a, refct) error("TODO: CTA_NONE") end,
-  function(a, refct) error("TODO: CTA_QUAL") end,
-  function(a, refct)
-    a = 2^a.value
-    refct.alignment = a
-    refct.attributes.align = a
-  end,
-  function(a, refct)
-    refct.transparent = true
-    refct.attributes.subtype = refct.typeid
-  end,
-  function(a, refct) refct.sym_name = a.name end,
-  function(a, refct) error("TODO: CTA_BAD") end,
-}
-
--- C function calling conventions (CTCC_* constants in lj_refct.h)
-local CTCCs = {[0] =
-  "cdecl",
-  "thiscall",
-  "fastcall",
-  "stdcall",
-}
-
-local function refct_from_id(id) -- refct = refct_from_id(CTypeID)
-  local ctype = CTState.tab[id]
-  local CT_code = bit.rshift(ctype.info, 28)
-  local CT = CTs[CT_code]
-  local what = CT[1]
-  local refct = setmetatable({
-    what = what,
-    typeid = id,
-    name = gc_str(ctype.name),
-  }, metatables[what])
-
-  -- Interpret (most of) the CType::info field
-  for i = 5, #CT do
-    if bit.band(ctype.info, CT[i][1]) ~= 0 then
-      if CT[i][3] == "subwhat" then
-        refct.what = CT[i][2]
-      else
-        refct[CT[i][2]] = true
-      end
-    end
-  end
-  if CT_code <= 5 then
-    refct.alignment = bit.lshift(1, bit.band(bit.rshift(ctype.info, 16), 15))
-  elseif what == "func" then
-    refct.convention = CTCCs[bit.band(bit.rshift(ctype.info, 16), 3)]
-  end
-
-  if CT[2] ~= "" then -- Interpret the CType::cid field
-    local k = CT[2]
-    local cid = bit.band(ctype.info, 0xffff)
-    if type_keys[k] then
-      if cid == 0 then
-        cid = nil
-      else
-        cid = refct_from_id(cid)
-      end
-    end
-    refct[k] = cid
-  end
-
-  if CT[3] ~= "" then -- Interpret the CType::size field
-    local k = CT[3]
-    refct[k] = ctype.size
-    if k == "size" and bit.bnot(refct[k]) == 0 then
-      refct[k] = "none"
-    end
-  end
-
-  if what == "attrib" then
-    -- Merge leading attributes onto the type being decorated.
-    local CTA = CTAs[bit.band(bit.rshift(ctype.info, 16), 0xff)]
-    if refct.type then
-      local ct = refct.type
-      ct.attributes = {}
-      CTA(refct, ct)
-      ct.typeid = refct.typeid
-      refct = ct
-    else
-      refct.CTA = CTA
-    end
-  elseif what == "bitfield" then
-    -- Decode extra bitfield fields, and make it look like a normal field.
-    refct.offset = refct.offset + bit.band(ctype.info, 127) / 8
-    refct.size = bit.band(bit.rshift(ctype.info, 8), 127) / 8
-    refct.type = {
-      what = "int",
-      bool = refct.bool,
-      const = refct.const,
-      volatile = refct.volatile,
-      unsigned = refct.unsigned,
-      size = bit.band(bit.rshift(ctype.info, 16), 127),
-    }
-    refct.bool, refct.const, refct.volatile, refct.unsigned = nil
-  end
-
-  if CT[4] then -- Merge sibling attributes onto this type.
-    while ctype.sib ~= 0 do
-      local entry = CTState.tab[ctype.sib]
-      if CTs[bit.rshift(entry.info, 28)][1] ~= "attrib" then break end
-      if bit.band(entry.info, 0xffff) ~= 0 then break end
-      local sib = refct_from_id(ctype.sib)
-      sib:CTA(refct)
-      ctype = entry
-    end
-  end
-
-  return refct
-end
-
-local function sib_iter(s, refct)
-  repeat
-    local ctype = CTState.tab[refct.typeid]
-    if ctype.sib == 0 then return end
-    refct = refct_from_id(ctype.sib)
-  until refct.what ~= "attrib" -- Pure attribs are skipped.
-  return refct
-end
-
-local function siblings(refct)
-  -- Follow to the end of the attrib chain, if any.
-  while refct.attributes do
-    refct = refct_from_id(refct.attributes.subtype or CTState.tab[refct.typeid].sib)
-  end
-
-  return sib_iter, nil, refct
-end
-
-metatables.struct.__index.members = siblings
-metatables.func.__index.arguments = siblings
-metatables.enum.__index.values = siblings
-
-local function find_sibling(refct, name)
-  local num = tonumber(name)
-  if num then
-    for sib in siblings(refct) do
-      if num == 1 then
-        return sib
-      end
-      num = num - 1
-    end
-  else
-    for sib in siblings(refct) do
-      if sib.name == name then
-        return sib
-      end
-    end
-  end
-end
-
-metatables.struct.__index.member = find_sibling
-metatables.func.__index.argument = find_sibling
-metatables.enum.__index.value = find_sibling
-
-function reflect.typeof(x) -- refct = reflect.typeof(ct)
-  return refct_from_id(tonumber(ffi.typeof(x)))
-end
-
-function reflect.getmetatable(x) -- mt = reflect.getmetatable(ct)
-  return miscmap[-tonumber(ffi.typeof(x))]
-end
-
-return reflect
-end
---------------------------------------------------------------------------------
--- End of moduledebugger.plugins.ffi.reflect
---------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
 --  Module debugger.platform
@@ -2140,7 +1428,7 @@ end
 function M.normalize(path)
     local parts = { }
     for w in path:gmatch("[^/]+") do
-        if     w == ".." and #parts ~=0 then table.remove(parts)
+        if     w == ".." then table.remove(parts)
         elseif w ~= "."  then table.insert(parts, w)
         end
     end
@@ -2170,7 +1458,7 @@ function M.init(executionplatform,workingdirectory)
             end
             return false
         end
-
+        
         local status, iswin = pcall(iswindows)
         if status and iswin then
             platform = "win"
@@ -2229,9 +1517,9 @@ end
 return M
 
 end
+-- End of module debugger.platform
 --------------------------------------------------------------------------------
--- End of moduledebugger.platform
---------------------------------------------------------------------------------
+
 
 --------------------------------------------------------------------------------
 --  Module debugger.util
@@ -2381,9 +1669,9 @@ if _VERSION == "Lua 5.1" then
         local f = loadstring(code)
         return f and setfenv(f, env)
     end
-
+    
     -- table that maps [gs]et environment to index
-    M.eval_env = setmetatable({ }, {
+    M.eval_env = setmetatable({ }, { 
         __index = function(self, func) return getfenv(func) end,
         __newindex = function(self, func, env) return setfenv(func, env) end,
     })
@@ -2393,9 +1681,9 @@ elseif _VERSION == "Lua 5.2" then
         if coro then return debug_getinfo(coro, level, what)
         else return debug_getinfo(level + 1, what) end
     end
-
+    
     function M.loadin(code, env) return load(code, nil, nil, env) end
-
+    
     -- no eval_env for 5.2 as functions does not have environments anymore
 end
 
@@ -2411,9 +1699,9 @@ end
 return M
 
 end
+-- End of module debugger.util
 --------------------------------------------------------------------------------
--- End of moduledebugger.util
---------------------------------------------------------------------------------
+
 
 --------------------------------------------------------------------------------
 --  Module debugger.url
@@ -2655,7 +1943,7 @@ function absolute(base_url, relative_url)
                         relative_parsed.query = base_parsed.query
                     end
                 end
-            else
+            else    
                 relative_parsed.path = absolute_path(base_parsed.path or "",
                     relative_parsed.path)
             end
@@ -2721,8 +2009,531 @@ end
 return _ENV
 
 end
+-- End of module debugger.url
 --------------------------------------------------------------------------------
--- End of moduledebugger.url
+
+
+--------------------------------------------------------------------------------
+--  Module debugger.plugins.ffi
+package.preload["debugger.plugins.ffi"] = function(...)
+-------------------------------------------------------------------------------
+-- Copyright (c) 2012-2013 Julien Desgats
+-- All rights reserved. This program and the accompanying materials
+-- are made available under the terms of the Eclipse Public License v1.0
+-- which accompanies this distribution, and is available at
+-- http://www.eclipse.org/legal/epl-v10.html
+--
+-- Contributors:
+--     Julien Desgats - initial API and implementation
+-------------------------------------------------------------------------------
+-- LuaJIT cdata introspection library.
+-------------------------------------------------------------------------------
+
+-- known issues:
+--  * references are de-referenced event if inspect_references is unset
+--  * is automatic pointer and reference de-referencing is possible ?
+--    (only for first item in case of arrays). Possible leads:
+--    http://stackoverflow.com/questions/7134590/how-to-test-if-an-address-is-readable-in-linux-userspace-app
+--    http://www.softwareverify.com/blog/?p=319
+--  * when setting a value from Eclipse, the type is sometimes changed (e.g. int => number)
+
+local introspection = require "debugger.introspection"
+local reflect = require "debugger.plugins.ffi.reflect"
+local ffi = require "ffi"
+
+local tostring, tonumber, type, assert, sformat, tconcat = tostring, tonumber, type, assert, string.format, table.concat
+
+local M = { }
+
+--- Whether the reference types are inspected. Usually references should be safe (at least a bit
+-- safer than pointers) so they are inspected. If a reference points to unsafe memory, the whole
+-- program could crash !
+-- If this feature is disabled, deeply nested C types will not be displayed correctly as evaluation
+-- has a recursion limit, any further evaluation is done through references.
+M.inspect_references = true
+
+local function make_typename(refct)
+    local t = refct.what
+    if t == "int" then
+        if refct.bool then t = "bool"
+        else
+            -- use C99 type notation to give more details about acutal type
+            t = (refct.unsigned and "uint" or "int") .. tostring(refct.size * 8) .. "_t"
+        end
+    elseif t == "float" then
+        -- assume IEEE754
+        if     refct.size ==  8 then t = "double"
+        elseif refct.size == 16 then t = "long double" -- not really sure this one is always true
+        end
+    elseif t == "struct" or t == "enum" or t == "union" then
+        t = refct.name and (t .. " " .. refct.name) or ("anonymous "..t)
+    elseif t == "func" then
+        t = "function (FFI)"
+    elseif t == "ptr" then
+        t = make_typename(refct.element_type) .. "*"
+    elseif t == "ref" then
+        t = make_typename(refct.element_type) .. "&"
+    elseif t == "field" then
+        return make_typename(refct.type)
+    elseif t == "bitfield" then
+        t = (refct.type.unsigned and "unsigned" or "signed") .. ":" .. tostring(refct.size * 8)
+        refct = refct.type
+    end
+    
+    if refct.const then t = "const " .. t end
+    if refct.volatile then t = "volatile " .. t end
+    return t
+end
+
+-- if cdatakind is unknown, this one will be called
+local default_inspector = introspection.inspectors.number
+local inspect
+
+-- recursion must be handled with some care: if we call regular introspection.inspect
+-- we may create boxed references or Lua native objects which will be inspected as such
+-- (leading to wrong type names).
+local function recurse(name, value, parent, fullname, refct)
+    if type(value) == "cdata" then
+        return inspect(name, value, parent, fullname, refct)
+    else
+        local prop = introspection.inspect(name, value, parent, fullname)
+        if prop then
+            prop.attr.type = make_typename(refct)
+        end
+        return prop
+    end
+end
+
+-- cdata specific inspectors
+local inspectors = {
+    struct = function(name, value, parent, fullname, refct)
+        local prop = introspection.property(name, make_typename(refct), tostring(value), parent, fullname)
+
+        -- inspect children, if needed
+        if prop then
+            for member in refct:members() do
+                local mname = member.name
+                recurse(mname, value[mname], prop, fullname .. sformat('[%q]', mname), member)
+            end
+        end
+        return prop
+    end,
+
+    array = function(name, value, parent, fullname, refct)
+        local etype = refct.element_type
+        -- for VLAs, reflect does not give size
+        local size = refct.size ~= "none" and refct.size or ffi.sizeof(value)
+        size = size and (size / etype.size) -- we've got the byte size, not element count
+        
+        local typename = make_typename(etype)
+        local prop = introspection.property(name, typename .. "[" .. (tostring(size) or "") .. "]", tostring(value), parent, fullname)
+        
+        if prop and size then
+            for i=0, size-1 do
+                local idx = "["..tostring(i).."]"
+                recurse(idx, value[i], prop, fullname .. idx, etype)
+            end
+        end
+        return prop
+    end,
+
+    func = function(name, value, parent, fullname, refct)
+        local args = { }
+        for arg in refct:arguments() do
+            args[#args + 1] = make_typename(arg.type) .. " " .. arg.name
+        end
+        
+        if refct.vararg then
+            args[#args + 1] = "..."
+        end
+        
+        local repr = make_typename(refct.return_type) .. " " .. refct.name .. "(" .. tconcat(args, ", ") .. ")"
+        return introspection.property(name, make_typename(refct), repr, parent, fullname)
+    end,
+
+    enum = function(name, value, parent, fullname, refct)
+        local repr = tonumber(value)
+        -- try to convert numeric value into enum name
+        --TODO: is there a faster method to make it ?
+        for val in refct:values() do
+            if val.value == repr then
+                repr = val.name
+                break
+            end
+        end
+        
+        return introspection.property(name, make_typename(refct), tostring(repr), parent, fullname)
+    end,
+    
+    ref = function(name, value, parent, fullname, refct)
+        -- this may be unsafe, see inspect_references setting
+        local typename = make_typename(refct)
+        if not M.inspect_references then
+            return introspection.property(name, typename, tostring(value), parent, fullname)
+        end
+        
+        local prop = recurse(name, value, parent, fullname, refct.element_type) 
+        if prop then
+            prop.attr.type = typename
+        end
+        return prop
+    end,
+    
+    int = function(name, value, parent, fullname, refct)
+        return introspection.property(name, make_typename(refct), tostring(tonumber(value)), parent, fullname)
+    end,
+    
+    -- pointers are too unsafe, do not inspect them
+    ptr = function(name, value, parent, fullname, refct)
+        return introspection.property(name, make_typename(refct), tostring(value), parent, fullname)
+    end,
+}
+
+inspectors.union = inspectors.struct
+inspectors.float = inspectors.int
+
+-- for struct/union fields, the actual type is nested into the refct 
+inspectors.field = function(name, value, parent, fullname, refct)
+    return inspect(name, value, parent, fullname, refct.type)
+end
+inspectors.bitfield = inspectors.field
+
+inspect = function(name, value, parent, fullname, refct)
+    -- inspect only values, not ctypes
+    --FIXME: this cause references to be dereferenced and crash the process if they are wrong !
+    if ffi.typeof(value) ~= value then
+        refct = refct or reflect.typeof(value)
+        return (inspectors[refct.what] or default_inspector)(name, value, parent, fullname, refct) 
+    end
+    
+    -- return a simple property for ctypes
+    return introspection.property(name, "ctype", tostring(value), parent, fullname)
+end
+
+introspection.inspectors.cdata = inspect
+
+return M
+
+end
+-- End of module debugger.plugins.ffi
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+--  Module debugger.plugins.ffi.reflect
+package.preload["debugger.plugins.ffi.reflect"] = function(...)
+-- LuaJIT FII reflection library
+-- License: Same as LuaJIT
+-- Version: beta 1 (2012-06-02)
+-- Author: Peter Cawley (lua@corsix.org)
+local ffi = require "ffi"
+local bit = require "bit"
+local reflect = {}
+
+-- Relevant minimal definitions from lj_ctype.h
+ffi.cdef [[
+  typedef struct CType {
+    uint32_t info;
+    uint32_t size;
+    uint16_t sib;
+    uint16_t next;
+    uint32_t name;
+  } CType;
+  
+  typedef struct CTState {
+    CType *tab;
+  } CTState;
+]]
+
+local function gc_str(gcref) -- Convert a GCref (to a GCstr) into a string
+  if gcref ~= 0 then
+    local ts = ffi.cast("uint32_t*", gcref)
+    return ffi.string(ts + 4, ts[3])
+  end
+end
+
+-- Acquire a pointer to this Lua universe's CTState
+local CTState do
+  -- Stripped down version of global_State from lj_obj.h.
+  -- All that is needed is for the offset of the ctype_state field to be correct.
+  local global_state_ptr = ffi.typeof [[
+    struct {
+      void* _; // strhash
+      uint32_t _[2]; // strmask, strnum
+      void(*_)(void); // allocf
+      void* _; // allocd
+      uint32_t _[14]; // gc
+      char* _; // tmpbuf
+      uint32_t _[28]; // tmpbuf, nilnode, strempty*, *mask, dispatchmode, mainthref, *tv*, uvhead, hookc*
+      void(*_[3])(void); // hookf, wrapf, panic
+      uint32_t _[5]; // vmstate, bc_*, jit_*
+      uint32_t ctype_state;
+    }*
+  ]]
+  local co = coroutine.create(function()end) -- Any live coroutine will do.
+  local L = tonumber(tostring(co):match"%x*$", 16) -- Get the memory address of co's lua_State (ffi.cast won't accept a coroutine).
+  local G = ffi.cast(global_state_ptr, ffi.cast("uint32_t*", L)[2])
+  CTState = ffi.cast("CTState*", G.ctype_state)
+end
+
+-- Information for unpacking a `struct CType`.
+-- One table per CT_* constant, containing:
+-- * A name for that CT_
+-- * Roles of the cid and size fields.
+-- * Whether the sib field is meaningful.
+-- * Zero or more applicable boolean flags.
+local CTs = {[0] =
+  {"int",
+    "", "size", false,
+    {0x08000000, "bool"},
+    {0x04000000, "float", "subwhat"},
+    {0x02000000, "const"},
+    {0x01000000, "volatile"},
+    {0x00800000, "unsigned"},
+    {0x00400000, "long"},
+  },
+  {"struct",
+    "", "size", true,
+    {0x02000000, "const"},
+    {0x01000000, "volatile"},
+    {0x00800000, "union", "subwhat"},
+    {0x00100000, "vla"},
+  },
+  {"ptr",
+    "element_type", "size", false,
+    {0x02000000, "const"},
+    {0x01000000, "volatile"},
+    {0x00800000, "ref", "subwhat"},
+  },
+  {"array",
+    "element_type", "size", false,
+    {0x08000000, "vector"},
+    {0x04000000, "complex"},
+    {0x02000000, "const"},
+    {0x01000000, "volatile"},
+    {0x00100000, "vla"},
+  },
+  {"void",
+    "", "size", false,
+    {0x02000000, "const"},
+    {0x01000000, "volatile"},
+  },
+  {"enum",
+    "type", "size", true,
+  },
+  {"func",
+    "return_type", "nargs", true,
+    {0x00800000, "vararg"},
+    {0x00400000, "sse_reg_params"},
+  },
+  {"typedef", -- Not seen
+    "element_type", "", false,
+  },
+  {"attrib", -- Only seen internally
+    "type", "value", true,
+  },
+  {"field",
+    "type", "offset", true,
+  },
+  {"bitfield",
+    "", "offset", true,
+    {0x08000000, "bool"},
+    {0x02000000, "const"},
+    {0x01000000, "volatile"},
+    {0x00800000, "unsigned"},
+  },
+  {"constant",
+    "type", "value", true,
+    {0x02000000, "const"},
+  },
+  {"extern", -- Not seen
+    "CID", "", true,
+  },
+  {"kw", -- Not seen
+    "TOK", "size",
+  },
+}
+
+-- Set of CType::cid roles which are a CTypeID.
+local type_keys = {
+  element_type = true,
+  return_type = true,
+  value_type = true,
+  type = true,
+}
+
+-- Create a metatable for each CT.
+local metatables = {
+}
+for _, CT in ipairs(CTs) do
+  local what = CT[1]
+  local mt = {__index = {}}
+  metatables[what] = mt
+end
+
+-- Logic for merging an attribute CType onto the annotated CType.
+local CTAs = {[0] =
+  function(a, refct) error("TODO: CTA_NONE") end,
+  function(a, refct) error("TODO: CTA_QUAL") end,
+  function(a, refct)
+    a = 2^a.value
+    refct.alignment = a
+    refct.attributes.align = a
+  end,
+  function(a, refct) refct.transparent = true end,
+  function(a, refct) refct.sym_name = a.name end,
+  function(a, refct) error("TODO: CTA_BAD") end,
+}
+
+-- C function calling conventions (CTCC_* constants in lj_refct.h)
+local CTCCs = {[0] = 
+  "cdecl",
+  "thiscall",
+  "fastcall",
+  "stdcall",
+}
+
+local function refct_from_id(id) -- refct = refct_from_id(CTypeID)
+  local ctype = CTState.tab[id]
+  local CT_code = bit.rshift(ctype.info, 28)
+  local CT = CTs[CT_code]
+  local what = CT[1]
+  local refct = setmetatable({
+    what = what,
+    typeid = id,
+    name = gc_str(ctype.name),
+  }, metatables[what])
+  
+  -- Interpret (most of) the CType::info field
+  for i = 5, #CT do
+    if bit.band(ctype.info, CT[i][1]) ~= 0 then
+      if CT[i][3] == "subwhat" then
+        refct.what = CT[i][2]
+      else
+        refct[CT[i][2]] = true
+      end
+    end
+  end
+  if CT_code <= 5 then
+    refct.alignment = bit.lshift(1, bit.band(bit.rshift(ctype.info, 16), 15))
+  elseif what == "func" then
+    refct.convention = CTCCs[bit.band(bit.rshift(ctype.info, 16), 3)]
+  end
+  
+  if CT[2] ~= "" then -- Interpret the CType::cid field
+    local k = CT[2]
+    local cid = bit.band(ctype.info, 0xffff)
+    if type_keys[k] then
+      if cid == 0 then
+        cid = nil
+      else
+        cid = refct_from_id(cid)
+      end
+    end
+    refct[k] = cid
+  end
+  
+  if CT[3] ~= "" then -- Interpret the CType::size field
+    local k = CT[3]
+    refct[k] = ctype.size
+    if k == "size" and bit.bnot(refct[k]) == 0 then
+      refct[k] = "none"
+    end
+  end
+  
+  if what == "attrib" then
+    -- Merge leading attributes onto the type being decorated.
+    local CTA = CTAs[bit.band(bit.rshift(ctype.info, 16), 0xff)]
+    if refct.type then
+      local ct = refct.type
+      ct.attributes = {}
+      CTA(refct, ct)
+      ct.typeid = refct.typeid
+      refct = ct
+    else
+      refct.CTA = CTA
+    end
+  elseif what == "bitfield" then
+    -- Decode extra bitfield fields, and make it look like a normal field.
+    refct.offset = refct.offset + bit.band(ctype.info, 127) / 8
+    refct.size = bit.band(bit.rshift(ctype.info, 8), 127) / 8
+    refct.type = {
+      what = "int",
+      bool = refct.bool,
+      const = refct.const,
+      volatile = refct.volatile,
+      unsigned = refct.unsigned,
+      size = bit.band(bit.rshift(ctype.info, 16), 127),
+    }
+    refct.bool, refct.const, refct.volatile, refct.unsigned = nil
+  end
+  
+  if CT[4] then -- Merge sibling attributes onto this type.
+    while ctype.sib ~= 0 do
+      local entry = CTState.tab[ctype.sib]
+      if CTs[bit.rshift(entry.info, 28)][1] ~= "attrib" then break end
+      if bit.band(entry.info, 0xffff) ~= 0 then break end
+      local sib = refct_from_id(ctype.sib)
+      sib:CTA(refct)
+      ctype = entry
+    end
+  end
+  
+  return refct
+end
+
+local function sib_iter(s, refct)
+  repeat
+    local ctype = CTState.tab[refct.typeid]
+    if ctype.sib == 0 then return end
+    refct = refct_from_id(ctype.sib)
+  until refct.what ~= "attrib" -- Pure attribs are skipped.
+  return refct
+end
+
+local function siblings(refct)
+  -- Follow to the end of the attrib chain, if any.
+  while refct.attributes do
+    refct = refct_from_id(CTState.tab[refct.typeid].sib)
+  end
+
+  return sib_iter, nil, refct
+end
+
+metatables.struct.__index.members = siblings
+metatables.func.__index.arguments = siblings
+metatables.enum.__index.values = siblings
+
+local function find_sibling(refct, name)
+  local num = tonumber(name)
+  if num then
+    for sib in siblings(refct) do
+      if num == 1 then
+        return sib
+      end
+      num = num - 1
+    end
+  else
+    for sib in siblings(refct) do
+      if sib.name == name then
+        return sib
+      end
+    end
+  end
+end
+
+metatables.struct.__index.member = find_sibling
+metatables.func.__index.argument = find_sibling
+metatables.enum.__index.value = find_sibling
+
+function reflect.typeof(x) -- refct = reflect.typeof(ct)
+  return refct_from_id(tonumber(ffi.typeof(x)))
+end
+
+return reflect
+
+end
+-- End of module debugger.plugins.ffi.reflect
 --------------------------------------------------------------------------------
 
 
@@ -2743,7 +2554,7 @@ end
 
 local debug = require "debug"
 
--- To avoid cyclic dependency, internal state of the debugger that must be accessed
+-- To avoid cyclic dependency, internal state of the debugger that must be accessed 
 -- elsewhere (in commands most likely) will be stored in a fake module "debugger.core"
 local core = { }
 package.loaded["debugger.core"] = core
@@ -2788,7 +2599,7 @@ else error(_VERSION .. "is not supported.") end
 -------------------------------------------------------------------------------
 --  Output redirection handling
 -------------------------------------------------------------------------------
--- Override standard output functions & constants to redirect data written to these files to IDE too.
+-- Override standard output functions & constants to redirect data written to these files to IDE too. 
 -- This works only for output done in Lua, output written by C extensions is still go to system output file.
 
 -- references to native values
@@ -2878,21 +2689,21 @@ do
         -- re-encode the URI to avoid any mismatch (with authority for example)
         local uri = url.parse(bp.filename)
         bp.filename = url.build{ scheme=uri.scheme, authority="", path=platform.normalize(uri.path)}
-
+        
         local filereg = file_mapping[bp.filename]
         if not filereg then
             filereg = { }
             file_mapping[bp.filename] = filereg
         end
-
+        
         local linereg = filereg[bp.lineno]
         if not linereg then
             linereg = {}
             filereg[bp.lineno] = linereg
         end
-
+    
         table.insert(linereg, bp)
-
+        
         id_mapping[bpid] = bp
         return bpid
     end
@@ -2902,7 +2713,7 @@ do
     function core.breakpoints.at(file, line)
         local bps = file_mapping[file] and file_mapping[file][line]
         if not bps then return nil end
-
+        
         local do_break = false
         for _, bp in pairs(bps) do
             if bp.state == "enabled" then
@@ -2932,7 +2743,7 @@ do
     end
 
     function core.breakpoints.get(id)
-        if id then return id_mapping[id]
+        if id then return id_mapping[id] 
         else return id_mapping end
     end
 
@@ -2947,7 +2758,7 @@ do
                     break
                 end
             end
-
+                    
             -- cleanup file_mapping
             if not next(linereg) then file_mapping[bp.filename][bp.lineno] = nil end
             if not next(file_mapping[bp.filename]) then file_mapping[bp.filename] = nil end
@@ -2955,33 +2766,33 @@ do
         end
         return false
     end
-
+    
     --- Returns an XML data structure that describes given breakpoint
     -- @param id (number) breakpoint ID
     -- @return Table describing a <breakpooint> tag or nil followed by an error message
     function core.breakpoints.get_xml(id)
         local bp = id_mapping[id]
         if not bp then return nil, "No such breakpoint: "..tostring(id) end
-
+        
         local response = { tag = "breakpoint", attr = { } }
         for k,v in pairs(bp) do response.attr[k] = v end
         if bp.expression then
             response[1] = { tag = "expression",  bp.expression }
         end
-
+        
         -- internal use only
         response.attr.expression = nil
         response.attr.condition = nil
         response.attr.temporary = nil -- TODO: the specification is not clear whether this should be provided, see other implementations
         return response
     end
-
+    
     --- Register an event to be triggered.
     -- @param event event name to register (must be "over", "out" or "into")
     function core.events.register(event)
         local thread = active_session.coro[1]
         log("DEBUG", "Registered %s event for %s (%d)", event, tostring(thread), stack_levels[thread])
-        if event == "into" then
+        if event == "into" then 
             step_into = true
         else
             waiting_sessions[thread] = { event, stack_levels[thread] }
@@ -2993,7 +2804,7 @@ do
     -- @return true if an event has matched, false otherwise
     function core.events.does_match()
         if step_into then return true end
-
+        
         local thread = active_session.coro[1]
         local event = waiting_sessions[thread]
         if event then
@@ -3008,7 +2819,7 @@ do
         end
         return false
     end
-
+    
     --- Discards event for current thread (if any)
     function core.events.discard()
         waiting_sessions[active_session.coro[1]] = nil
@@ -3043,16 +2854,16 @@ end
 -- way to get main coro in Lua 5.1 (only in 5.2)
 local function debugger_loop(self, async_packet)
     self.skt:settimeout(nil) -- set socket blocking
-
+    
     -- in async mode, the debugger does not wait for another command before continuing and does not modify previous_context
     local async_mode = async_packet ~= nil
-
+    
     if self.previous_context and not async_mode then
         self.state = "break"
         core.previous_context_response(self)
     end
     self.stack = context.ContextManager(self.coro) -- will be used to mutualize context allocation for each loop
-
+    
     while true do
         -- reads packet
         local packet = async_packet or dbgp.read_packet(self.skt)
@@ -3065,7 +2876,7 @@ local function debugger_loop(self, async_packet)
         async_packet = nil
         log("DEBUG", packet)
         local cmd, args, data = dbgp.cmd_parse(packet)
-
+        
         -- FIXME: command such as continuations sent in async mode could lead both engine and IDE in inconsistent state :
         --        make a blacklist/whitelist of forbidden or allowed commands in async ?
         -- invoke function
@@ -3095,17 +2906,17 @@ local function debugger_loop(self, async_packet)
             dbgp.send_xml(self.skt, { tag = "response", attr = { command = cmd, transaction_id = args.i, }, dbgp.make_error(4) } )
         end
     end
-
+    
     self.stack = nil -- free allocated contexts
     self.state = "running"
     self.skt:settimeout(0) -- reset socket to async
 end
 
 -- Stack handling can be pretty complex sometimes, especially with LuaJIT (as tail-call optimization are
--- more aggressive as stock Lua). So all debugger stuff is done in another coroutine, which leave the program
+-- more aggressive as stock Lua). So all debugger stuff is done in another coroutine, which leave the program 
 -- stack in a clean state and allow faster and clearer stack operations (no need to remove all debugger calls
 -- from stack for each operation).
--- However, this does not always work with stock Lua 5.1 as the main coroutine cannot be referenced
+-- However, this does not always work with stock Lua 5.1 as the main coroutine cannot be referenced 
 -- (coroutine.running() return nil). For this particular case, the debugger loop is started on the top of
 -- program stack and every stack operation is relative the the hook level (see MainThread in util.lua).
 local function line_hook(line)
@@ -3265,7 +3076,7 @@ local function init(host, port, idekey, transport, executionplatform, workingdir
         end
         return ...
     end
-
+    
     function coroutine.resume(coro, ...)
         if not stack_levels[coro] then
             -- first time referenced
@@ -3277,7 +3088,7 @@ local function init(host, port, idekey, transport, executionplatform, workingdir
         end
         return resume_handler(coro, coresume(coro, ...))
     end
-
+    
     -- coroutine.wrap uses directly C API for coroutines and does not trigger our overridden coroutine.resume
     -- so this is an implementation of wrap in pure Lua
     local function wrap_handler(status, ...)

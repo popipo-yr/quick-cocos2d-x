@@ -45,7 +45,7 @@ public:
     , m_writablePath("")
     , m_packagePath("")
     , m_frameSize(960, 640)
-    , m_frameScale(1.0f)
+    , m_frameScale(0.25f)
     , m_showConsole(true)
     , m_loadPrecompiledFramework(true)
     , m_writeDebugLogToFile(true)
